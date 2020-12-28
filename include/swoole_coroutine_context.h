@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <zend.h>
 #include "swoole.h"
 
 #ifdef SW_USE_THREAD_CONTEXT
@@ -52,6 +53,9 @@ class Context {
     ~Context();
     bool swap_in();
     bool swap_out();
+    inline void setCid(long cid) {
+        cid_ = cid;
+    }
 #if !defined(SW_USE_THREAD_CONTEXT) && defined(SW_CONTEXT_DETECT_STACK_USAGE)
     ssize_t get_stack_usage();
 #endif
@@ -77,6 +81,16 @@ class Context {
 #endif
     void *private_data_;
     bool end_;
+    // 协程上一次 swap in 的时间，单位秒
+    double last_swap_in_time_;
+    // 协程上一次 swap in 时的 php 调用栈信息
+    zval last_swap_in_debug_backtrace_;
+    // 协程上一次连续执行的时长，记录这个时间是因为 swap out 中取不到正确的 php 调用栈
+    double prev_run_duration_;
+    long cid_;
+    // 前一个协程 ID，在 swap out 时，cpu 执行将切换至该协程
+    long origin_cid_;
+    void print_backtrace(zval *debug_backtrace);
 };
 
 }  // namespace coroutine

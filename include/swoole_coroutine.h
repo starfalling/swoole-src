@@ -86,6 +86,10 @@ class Coroutine {
         return task;
     }
 
+    inline coroutine::Context *get_ctx() {
+        return &ctx;
+    }
+
     inline bool is_end() {
         return ctx.is_end();
     }
@@ -180,6 +184,7 @@ class Coroutine {
 
     Coroutine(const coroutine_func_t &fn, void *private_data) : ctx(stack_size, fn, private_data) {
         cid = ++last_cid;
+        ctx.setCid(cid);
         coroutines[cid] = this;
         if (sw_unlikely(count() > peak_num)) {
             peak_num = count();
