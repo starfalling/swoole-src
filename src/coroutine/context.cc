@@ -25,6 +25,7 @@
 
 #define MAGIC_STRING "swoole_coroutine#5652a7fb2b38be"
 #define START_OFFSET (64 * 1024)
+#define CO_STUCK_TRACK_MIN_LOG_TIME (0.1)
 
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #define MAP_ANONYMOUS MAP_ANON
@@ -150,8 +151,8 @@ void Context::print_backtrace(zval *debug_backtrace) {
 }
 
 bool Context::swap_in() {
-    if (prev_run_duration_ > 0.01) {
-        printf("WARNING: 协程单次执行时间过长 %.6fs, cid=%ld\n", swoole_microtime() - last_swap_in_time_, cid_);
+    if (prev_run_duration_ > CO_STUCK_TRACK_MIN_LOG_TIME) {
+        printf("WARNING: 协程单次执行时间过长 %.6fs, cid=%ld\n", microtime() - last_swap_in_time_, cid_);
         printf("================== SWAP IN  ==================\n");
         print_backtrace(&last_swap_in_debug_backtrace_);
         printf("================== SWAP OUT ==================\n");
@@ -160,7 +161,7 @@ bool Context::swap_in() {
     }
     origin_cid_ = Coroutine::get_current()->get_origin_cid();
 //    printf("swap in is called, cid=%ld, origin cid=%ld\n", cid_, origin_cid_);
-    last_swap_in_time_ = swoole_microtime();
+    last_swap_in_time_ = microtime();
     zend_fetch_debug_backtrace(&last_swap_in_debug_backtrace_, 0, DEBUG_BACKTRACE_IGNORE_ARGS, 0);
 //    print_backtrace(&last_swap_in_debug_backtrace_);
 #if USE_UCONTEXT
@@ -172,10 +173,10 @@ bool Context::swap_in() {
 }
 
 bool Context::swap_out() {
-    prev_run_duration_ = swoole_microtime() - last_swap_in_time_;
+    prev_run_duration_ = microtime() - last_swap_in_time_;
 //    printf("Context::swap_out is called, cid=%d, origin cid=%ld\n", cid_, origin_cid_);
-    if (prev_run_duration_ > 0.01 && end_) {
-        printf("WARNING: 协程单次执行时间过长 %.6fs, cid=%ld\n", swoole_microtime() - last_swap_in_time_, cid_);
+    if (prev_run_duration_ > CO_STUCK_TRACK_MIN_LOG_TIME && end_) {
+        printf("WARNING: 协程单次执行时间过长 %.6fs, cid=%ld\n", microtime() - last_swap_in_time_, cid_);
         printf("================== SWAP IN  ==================\n");
         print_backtrace(&last_swap_in_debug_backtrace_);
         printf("================== SWAP OUT ==================\n");
@@ -185,7 +186,7 @@ bool Context::swap_out() {
         Coroutine *origin_coroutine = Coroutine::get_by_cid(origin_cid_);
         if (origin_coroutine != nullptr) {
             coroutine::Context *origin_ctx = origin_coroutine->get_ctx();
-            origin_ctx->last_swap_in_time_ = swoole_microtime();
+            origin_ctx->last_swap_in_time_ = microtime();
             origin_ctx->prev_run_duration_ = 0;
         }
     }
@@ -201,7 +202,7 @@ bool Context::swap_out() {
 void Context::context_func(void *arg) {
     Context *_this = (Context *) arg;
 //    printf("context_func is called, cid=%ld\n", _this->cid_);
-    _this->last_swap_in_time_ = swoole_microtime();
+    _this->last_swap_in_time_ = microtime();
     zend_fetch_debug_backtrace(&_this->last_swap_in_debug_backtrace_, 0, DEBUG_BACKTRACE_IGNORE_ARGS, 0);
     _this->fn_(_this->private_data_);
     _this->end_ = true;
